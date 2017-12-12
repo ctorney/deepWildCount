@@ -9,12 +9,14 @@ inputfile = ROOTDIR  + '/data/2015-Z-ALL-COUNTERS.csv'
 counts = pd.read_csv(inputfile)
 
 allfile = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
+allfile = ROOTDIR  + '/data/2015-FINAL-FINAL.csv'
 all_counts = pd.read_csv(allfile)
 
-movieList = np.genfromtxt(ROOTDIR + '/data/2015-train.txt',dtype='str')
+movieList = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
 #np.genfromtxt('col.txt',dtype='str')
 endLoop=False
 for imagename in movieList: 
+
     print(imagename + '.JPG')
     im = cv2.imread(image_dir + imagename + '.JPG')
     rawIm = im.copy()
@@ -22,15 +24,14 @@ for imagename in movieList:
     df = all_counts[all_counts['image_name']==imagename]
 
     for i,point in df.iterrows():
-        allIm = cv2.drawMarker(allIm, (int(point['xcoord']),int(point['ycoord'])), (0,0,255), markerType=cv2.MARKER_STAR, markerSize=30, thickness=2, line_type=cv2.LINE_AA)
+        allIm = cv2.drawMarker(allIm, (int(point['xcoord']),int(point['ycoord'])), (0,0,255), markerType=cv2.MARKER_SQUARE, markerSize=60, thickness=2, line_type=cv2.LINE_AA)
+
 
     imCounts = counts[counts['SWC_image']==imagename]
 
     for user in imCounts['user_name'].drop_duplicates():
-        print(user)
         df = imCounts[imCounts['user_name']==user]
         for i,point in df.iterrows():
-            print(point.xcoord)
             im = cv2.drawMarker(im, (int(point['xcoord']),int(point['ycoord'])), (0,0,255), markerType=cv2.MARKER_STAR, markerSize=30, thickness=2, line_type=cv2.LINE_AA)
         
     cv2.namedWindow(imagename, flags =  cv2.WINDOW_GUI_EXPANDED )
