@@ -3,10 +3,9 @@ import numpy as np
 import pandas as pd
 import os
 
-raw_image_folder = '2015'
 ROOTDIR = '../../'
 raw_image_folder = ROOTDIR + '/data/2015/'
-label_image_folder = raw_image_folder + '/label'
+label_image_folder = raw_image_folder + '/labels/'
 
 data_file_csv = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
 count_data = pd.read_csv(data_file_csv)
@@ -30,5 +29,5 @@ for name in image_names:
         #for each row, increment the array around that location by 1
         for index, row in count_rows.iterrows():
             draw.ellipse((int(row.xcoord) - rd, int(row.ycoord) - rd, int(row.xcoord) + rd, int(row.ycoord) + rd), fill=(255,255,255))
-        newfilename = truth_image_folder + '/' + fname + '.png'
+        newfilename = label_image_folder + '/' + fname + '.png'
         img.save(newfilename)
