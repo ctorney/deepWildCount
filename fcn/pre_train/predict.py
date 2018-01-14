@@ -47,16 +47,16 @@ fcn_model.add(Flatten())
 
 
 
-fcn_model.load_weights('vgg19-tiny-imagenet.h5')
+fcn_model.load_weights('vgg16-tiny-imagenet.h5')
 # CONCATENATE THE TWO MODELS
 #new_model.add(model3)
 print(fcn_model.summary())
 
-img_path = 'elephant.jpg'
-img = image.load_img(img_path, target_size=(64, 64))
-x = image.img_to_array(img)
+filename = 'elephant.jpg'
+img = cv2.imread(filename)
+x = img.astype('float32')/255
 x = np.expand_dims(x, axis=0)
-x = preprocess_input(x)
+#x = preprocess_input(x)
 
 preds = fcn_model.predict(x)
 for i in range(200): print(preds[0,i])
