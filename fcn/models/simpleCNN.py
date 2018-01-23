@@ -61,3 +61,5 @@ def getSegModel(input_width, input_height) -> Model:
     model = Model(input_img, x)
     return model
 
+
+
