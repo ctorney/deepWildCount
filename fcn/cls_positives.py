@@ -14,11 +14,12 @@ w_train = pd.read_csv(allfile)
 
 train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
 
-
-im_size=64
+7360
+4912
+im_size=96
 sz_2=im_size//2
 
-w_train = w_train[(w_train['xcoord'] > 32) & (w_train['xcoord'] < 7325) & (w_train['ycoord'] > 32) & (w_train['ycoord'] < 4879)]
+w_train = w_train[(w_train['xcoord'] > sz_2) & (w_train['xcoord'] < 7360-sz_2) & (w_train['ycoord'] > 32) & (w_train['ycoord'] < 4879)]
 
 for imagename in train_images: 
     im = cv2.imread(image_dir + imagename + '.JPG')

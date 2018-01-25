@@ -1,8 +1,10 @@
-from bilinearupsampling import BilinearUpSampling2D
+#from bilinearupsampling import BilinearUpSampling2D
 from keras.layers import Activation, Reshape, Dropout
 from keras.layers import Conv2D, MaxPooling2D, ZeroPadding2D, Flatten, Dense
 from keras.models import Sequential, Model
 from keras.layers import *
+from keras.applications.vgg16 import VGG16
+import tensorflow as tf
 
 
 num_classes=2
@@ -72,7 +74,12 @@ def getVgg16SegModel(input_width, input_height) -> Sequential:
     model.add(Conv2D(256, (2,2), activation='relu', name='fc1',input_shape=base_model.output_shape[1:]))
     model.add(Dropout(0.5))
     model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
-    model.add(BilinearUpSampling2D(target_size=(input_height,input_width)))
+#    model.add(BilinearUpSampling2D(target_size=(input_height,input_width)))
+# add final bilinear interpolation layer
+    def resize_bilinear(images):
+        return tf.image.resize_bilinear(images, [input_height,input_width])
+    model.add(Lambda(resize_bilinear))
+
     for layer in model.layers[:-4]:
         layer.trainable = False
     return model
