@@ -21,15 +21,15 @@ def weighted_categorical_crossentropy_fcn_loss(y_true, y_pred):
     cce = categorical_crossentropy(y_true_mask, y_pred)  # one dim less (each 1hot vector -> float number)
     y_true_weights_maxed = K.max(y_true, axis=-1)  # [0 120 0 0] -> 120 - get weight for each weight-hot vector
     wcce = cce * y_true_weights_maxed
-    return K.sum(wcce)
+    return (wcce)
 
-model_type = 16 # model can be 32s, 16s or 8s
-batch_size = 1
-batch_size_val = 1
+model_type = 32 # model can be 32s, 16s or 8s
+batch_size = 32
+batch_size_val = 8
 epochs = 250
 lr_base = 1e-6#0.01 * (float(batch_size) / 16)
 target_size = (512, 512)
-class_weights = [0.50038, 666.47713]
+class_weights = [1,1200]#0.50038, 666.47713]
 
 ROOTDIR = '../../'
 
@@ -74,7 +74,7 @@ if model_type==32:
 optimizer = SGD(lr=lr_base, momentum=0.9)
 
 #model.compile(loss=loss_fn,
-model.compile(loss='binary_crossentropy',
+model.compile(loss=loss_fn,#'categorical_crossentropy',
               optimizer=optimizer,
               metrics=metrics)
 
