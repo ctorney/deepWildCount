@@ -71,7 +71,7 @@ def getVgg16SegModel(input_width, input_height) -> Sequential:
     model=Sequential()
     for layer in base_model.layers:
         model.add(layer)
-    model.add(Conv2D(256, (2,2), activation='relu', name='fc1',input_shape=base_model.output_shape[1:]))
+    model.add(Conv2D(256, (1,1), activation='relu', name='fc1',input_shape=base_model.output_shape[1:]))
     model.add(Dropout(0.5))
     model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
 #    model.add(BilinearUpSampling2D(target_size=(input_height,input_width)))

@@ -6,9 +6,9 @@ import cv2
 import random
 
 
-ROOTDIR = '../'
+ROOTDIR = '../../'
 image_dir = ROOTDIR + '/data/2015/'
-train_dir = 'cls_train_images/nw/0/'
+train_dir = 'train_images/nw/0/'
 
 allfile = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
 w_train = pd.read_csv(allfile)
@@ -26,7 +26,7 @@ for i in range(sample_count):
     k = random.randint(0,train_count-1)
     dist[k]+=1
 
-im_size=64
+im_size=96
 sz_2=im_size//2
 
 # closest point to a wildebeest we'll accept (squared to save rooting the distance)
@@ -42,8 +42,8 @@ for i in range(train_count):
     # dist stores how many samples we take from this image
     for j in range(dist[i]):
         while(1):
-            x = random.randint(32,7324)
-            y = random.randint(32,4878)
+            x = random.randint(sz_2,7360-sz_2)
+            y = random.randint(32,4912-sz_2)
             closest = 2*min_dist
             if len(x_w):
                 distances = (x-x_w)**2 + (y-y_w)**2

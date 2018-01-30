@@ -4,12 +4,30 @@ import numpy as np
 import cv2
 import pandas as pd
 from keras.utils.np_utils import to_categorical
+
+import tensorflow as tf
+
+import time,os,sys
+from keras.applications.vgg19 import VGG19
+from keras.applications.vgg16 import VGG16
+from keras.preprocessing import image
+from keras.applications.vgg16 import preprocess_input, decode_predictions
+from keras.layers import Flatten, Dense, Input, Dropout, Lambda
+from keras.layers import Conv2D
+from keras.layers import MaxPooling2D
+from keras.models import Sequential, Model
+from keras.utils.np_utils import to_categorical
+from keras.callbacks import EarlyStopping
+from keras.preprocessing.image import ImageDataGenerator
+from keras import optimizers
+from keras import layers
+
 from models import simpleCNN
 import time
 
-ROOTDIR = '../'
+ROOTDIR = '../../'
 image_dir = ROOTDIR + '/data/2015/'
-train_dir = 'cls_train_images/nw/1/'
+train_dir = 'train_images/nw/1/'
 
 allfile = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
 trainfile = ROOTDIR + '/data/2015-checked-train.txt'
@@ -18,12 +36,33 @@ np.random.seed(2017)
 nx = 512
 ny = 512
 
-cls_im_sz = 64
+cls_im_sz = 96
 im2 = cls_im_sz//2
-fcnmodel = simpleCNN.getVgg16SegModel(ny,nx)
-num_classes=2
+#fcnmodel = simpleCNN.getVgg16SegModel(ny,nx)
+num_classes = 2
 
-fcnmodel.load_weights('weights/vgg16-cls.h5')
+# load base model
+base_model = VGG16(weights='imagenet',include_top=False,input_shape=(ny,nx,3)) 
+
+fcn_model = Sequential()
+for l in base_model.layers:
+    fcn_model.add(l)
+
+
+fcn_model.add(Conv2D(256, (1,1), activation='relu', name='fc1',padding='VALID',input_shape=base_model.output_shape[1:]))
+fcn_model.add(Dropout(0.5))
+fcn_model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
+
+#load classifier weights
+fcn_model.load_weights('../weights/vgg16-cls.h5')
+
+# add final bilinear interpolation layer
+def resize_bilinear(images):
+    return tf.image.resize_bilinear(images, [nx,ny])
+fcn_model.add(Lambda(resize_bilinear))
+#num_classes=2
+
+#fcnmodel.load_weights('weights/vgg16-cls.h5')
 train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
 
 allfile = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
@@ -67,9 +106,13 @@ for filename in train_images:
             X.append(arr)
             X = np.asarray(X)
             X = X.astype('float32')/255
-            result = fcnmodel.predict(X)[0]
+            result = fcn_model.predict(X)[0]
             predicted_class = np.argmax(result, axis=2)
             prediction = result[:,:,1]
+#output = preds[0,:,:,1]
+ #           outRGB = cv2.cvtColor((255*predicted_class).astype(np.uint8),cv2.COLOR_GRAY2BGR)
+ #           cv2.imwrite('test_pred/test_' + filename + str(x_pos) + str(y_pos) + 'out.png',outRGB)
+ #           cv2.imwrite('test_pred/test_' + filename + str(x_pos) + str(y_pos) + 'in.png',arr)
  #           outRGB = cv2.cvtColor((255*result[:,:,1]).astype(np.uint8),cv2.COLOR_GRAY2BGR)
   #          cv2.imwrite('test_out.png',outRGB)
    #         break
@@ -103,7 +146,7 @@ for filename in train_images:
    #                         end = time.time()
  #                           print(end - start)
  #                           if x_in >= 50 and y_in >= 50 and x_in <= nx - 50 and y_in <= ny - 50:
-                            tiny_im = arr[y_in - im2:y_in+im2, x_in - 32:x_in+32, :]
+                            tiny_im = arr[y_in - im2:y_in+im2, x_in - im2:x_in+im2, :]
 #                                tiny_img = Image.fromarray(np.uint8(tiny_im))
                             if tiny_im.shape == (cls_im_sz,cls_im_sz,3):
                                 cv2.imwrite(train_dir + filename + '_' + str(j) + '.jpg', tiny_im)

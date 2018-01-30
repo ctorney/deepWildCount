@@ -5,7 +5,7 @@ from keras.applications.vgg16 import VGG16
 from keras.preprocessing import image
 from keras.applications.vgg19 import preprocess_input, decode_predictions
 from keras.layers import Flatten, Dense, Input, Dropout
-from keras.layers import Conv2D
+from keras.layers import Conv2D, Cropping2D
 from keras.layers import MaxPooling2D
 from keras.models import Sequential, Model
 from keras.utils.np_utils import to_categorical
@@ -16,24 +16,12 @@ import numpy as np
 import random
 import cv2
 
-num_classes = 200
+num_classes = 2
 
-#model = VGG16(weights='imagenet',include_top=True)
-#print(model.summary())
-#base_model = VGG19(weights='imagenet',include_top=False,input_shape=(64,64,3) )
-#print(base_model.summary())
-base_model = VGG16(weights='imagenet',include_top=False,input_shape=(64,64,3) )
+im_sz = 96
+# set-up the model
+base_model = VGG16(weights='imagenet',include_top=False,input_shape=(im_sz,im_sz,3) )
 
-print(base_model.summary())
-#sys.exit('bye')
-
-# CREATE A TOP MODEL
-#model3 = Sequential()
-#model3.add(Flatten(
-
-
-# CREATE AN "REAL" MODEL FROM VGG16
-# BY COPYING ALL THE LAYERS OF VGG16
 fcn_model = Sequential()
 for l in base_model.layers:
     fcn_model.add(l)
@@ -41,37 +29,42 @@ for l in base_model.layers:
 for layer in fcn_model.layers:
     layer.trainable = False
 
-fcn_model.add(Conv2D(4096, (2,2), activation='relu', name='fc1',input_shape=base_model.output_shape[1:]))
+fcn_model.add(Cropping2D(cropping=((1, 1), (1, 1))))
+fcn_model.add(Conv2D(256, (1,1), activation='relu', name='fc1',input_shape=base_model.output_shape[1:]))
 fcn_model.add(Dropout(0.5))
-fcn_model.add(Conv2D(4096, (1,1), activation='relu', padding='same', name='fc2'))
-fcn_model.add(Dropout(0.5))
-fcn_model.add(Conv2D(num_classes, (1, 1), activation='softmax', name='predictions'))
+fcn_model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
 fcn_model.add(Flatten())
 
-# CONCATENATE THE TWO MODELS
-#new_model.add(model3)
-#print(model.summary())
 print(fcn_model.summary())
 
-sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-fcn_model.compile(optimizer=sgd, loss='categorical_crossentropy', metrics=['accuracy'])
+fcn_model.compile(optimizer='rmsprop',loss='binary_crossentropy',metrics=['accuracy'])
 
 
+#create training samples
 train_images = []
 train_labels = []
 
-label_counter=0
-
 import glob
 
-for imdir in os.listdir('tiny-imagenet-200/train/'):
-    for filename in glob.iglob('tiny-imagenet-200/train/' + imdir +  '/images/*.JPEG'):
-        img = cv2.imread(filename)
-        if img is not None:
-            train_images.append(np.array(img))
-            train_labels.append(label_counter)
-    label_counter = label_counter + 1
+# use 10000 images
+nw=0
+negatives =  glob.glob('train_images/nw/0/*.jpg')
+random.shuffle(negatives)
 
+for filename in negatives:
+    if nw>10000: break
+    img = cv2.imread(filename)
+    if img is not None:
+        train_images.append(np.array(img))
+        train_labels.append(0)
+        nw+=1
+
+
+for filename in glob.iglob('train_images/w/*.jpg'):
+    img = cv2.imread(filename)
+    if img is not None:
+        train_images.append(np.array(img))
+        train_labels.append(1)
    
 
 print(len(train_images))
@@ -105,7 +98,7 @@ y_test = to_categorical(y_test,num_classes)
 datagen = ImageDataGenerator(zoom_range=0.0, vertical_flip=False, horizontal_flip=False)
 
 
-callbacks = [EarlyStopping(monitor='val_loss', patience=4, verbose=1)]
+callbacks = [EarlyStopping(monitor='val_loss', patience=1, verbose=1)]
 
 # train the model
 start = time.time()
@@ -117,6 +110,6 @@ end = time.time()
 
 print('Training ends')
 
-fcn_model.save_weights('vgg19-tiny-imagenet.h5')
+fcn_model.save_weights('../weights/vgg16-header.h5')
 print('Total time taken:' + str(end - start))
 

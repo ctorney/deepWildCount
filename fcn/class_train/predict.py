@@ -20,7 +20,7 @@ import numpy as np
 import random
 import cv2
 
-ROOTDIR = '../'
+ROOTDIR = '../../'
 image_dir = ROOTDIR + '/data/2015/'
 img = cv2.imread(image_dir + 'SWC0002.JPG')
 
@@ -41,12 +41,12 @@ for l in base_model.layers:
     fcn_model.add(l)
 
 
-fcn_model.add(Conv2D(256, (2,2), activation='relu', name='fc1',padding='VALID',input_shape=base_model.output_shape[1:]))
+fcn_model.add(Conv2D(256, (1,1), activation='relu', name='fc1',padding='VALID',input_shape=base_model.output_shape[1:]))
 fcn_model.add(Dropout(0.5))
 fcn_model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
 
 #load classifier weights
-fcn_model.load_weights('weights/vgg16-cls.h5')
+fcn_model.load_weights('../weights/vgg16-cls.h5')
 
 # add final bilinear interpolation layer
 def resize_bilinear(images):
@@ -57,6 +57,7 @@ fcn_model.add(Lambda(resize_bilinear))
 print(fcn_model.summary())
 preds = fcn_model.predict(im[None,:])
 output = np.argmax(preds[0,:,:,:],2)
+output = preds[0,:,:,1]
 outRGB = cv2.cvtColor((255*output).astype(np.uint8),cv2.COLOR_GRAY2BGR)
 cv2.imwrite('test_out.png',outRGB)
 cv2.imwrite('test_in.png',img)
