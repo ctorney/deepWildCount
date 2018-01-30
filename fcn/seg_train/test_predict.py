@@ -21,7 +21,7 @@ import random
 import cv2
 num_classes = 2
 
-mfcn8s = fcn_16s_model()
+mfcn8s = fcn_32s_model()
 
 print(mfcn8s.summary())
 

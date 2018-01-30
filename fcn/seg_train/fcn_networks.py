@@ -250,8 +250,8 @@ def fcn_8s_model():
     w_ = get_deconv_weights([8,8,num_classes, num_classes])
     fcn8s.get_layer('p5_deconv').set_weights([w_,w1_])
     w_ = get_deconv_weights([16,16,num_classes, num_classes])
-    fcn8s.get_layer('p3_conv').set_weights(l3_model().get_layer('p3_conv').get_weights())
-    fcn8s.get_layer('p4_conv').set_weights(l4_model().get_layer('p4_conv').get_weights())
+    #fcn8s.get_layer('p3_conv').set_weights(l3_model().get_layer('p3_conv').get_weights())
+    #fcn8s.get_layer('p4_conv').set_weights(l4_model().get_layer('p4_conv').get_weights())
 
     fcn8s.get_layer('p3_conv').trainable=True
     fcn8s.get_layer('p4_conv').trainable=True
@@ -265,57 +265,5 @@ def fcn_8s_model():
     if os.path.isfile('fcn_8s_weights.h5'):
         fcn16s.load_weights('fcn_8s_weights.h5')
     return fcn8s
-
-#
-def l3_model():
-# get lower levels model for pretrained conv3 layer
-    input_shape = (96,96,3)
-    full_model = VGG16(weights='imagenet',include_top=False,input_shape=input_shape )
-
-    ip = Input(shape=input_shape) #(3, self.img_height, self.img_width))
-    h = full_model.layers[1](ip)
-    h = full_model.layers[2](h)
-    h = full_model.layers[3](h)
-    h = full_model.layers[4](h)
-    h = full_model.layers[5](h)
-    h = full_model.layers[6](h)
-    h = full_model.layers[7](h)
-    h = full_model.layers[8](h)
-    h = full_model.layers[9](h)
-    h = full_model.layers[10](h)
-
-    h = Conv2D(num_classes, (1, 1), activation='relu', padding='valid',name='p3_conv')(h)
-    h = Cropping2D(cropping=((5, 6), (5, 6)))(h)
-    h = Flatten()(h)
-    l3_model = Model(ip,h)
-    l3_model.load_weights('../weights/vgg16-layer-3.h5')
-    return l3_model
-def l4_model():
-# get lower levels model for pretrained conv4 layer
-    input_shape = (96,96,3)
-    full_model = VGG16(weights='imagenet',include_top=False,input_shape=input_shape )
-
-    ip = Input(shape=input_shape) #(3, self.img_height, self.img_width))
-    h = full_model.layers[1](ip)
-    h = full_model.layers[2](h)
-    h = full_model.layers[3](h)
-    h = full_model.layers[4](h)
-    h = full_model.layers[5](h)
-    h = full_model.layers[6](h)
-    h = full_model.layers[7](h)
-    h = full_model.layers[8](h)
-    h = full_model.layers[9](h)
-    h = full_model.layers[10](h)
-    h = full_model.layers[11](h)
-    h = full_model.layers[12](h)
-    h = full_model.layers[13](h)
-    h = full_model.layers[14](h)
-
-    h = Conv2D(num_classes, (1, 1), activation='relu', padding='valid',name='p4_conv')(h)
-    h = Cropping2D(cropping=((2, 3), (2, 3)))(h)
-    h = Flatten()(h)
-    l4_model = Model(ip,h)
-    l4_model.load_weights('../weights/vgg16-layer-4.h5')
-    return l4_model
 
 
