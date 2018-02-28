@@ -1,32 +1,4 @@
 
-
-# coding: utf-8
-
-# **Outline of Steps**
-#     + Initialization
-#         + Download COCO detection data from http://cocodataset.org/#download
-#             + http://images.cocodataset.org/zips/train2014.zip <= train images
-#             + http://images.cocodataset.org/zips/val2014.zip <= validation images
-#             + http://images.cocodataset.org/annotations/annotations_trainval2014.zip <= train and validation annotations
-#         + Run this script to convert annotations in COCO format to VOC format
-#             + https://gist.github.com/chicham/6ed3842d0d2014987186#file-coco2pascal-py
-#         + Download pre-trained weights from https://pjreddie.com/darknet/yolo/
-#             + https://pjreddie.com/media/files/yolo.weights
-#         + Specify the directory of train annotations (train_annot_folder) and train images (train_image_folder)
-#         + Specify the directory of validation annotations (valid_annot_folder) and validation images (valid_image_folder)
-#         + Specity the path of pre-trained weights by setting variable *wt_path*
-#     + Construct equivalent network in Keras
-#         + Network arch from https://github.com/pjreddie/darknet/blob/master/cfg/yolo-voc.cfg
-#     + Load the pretrained weights
-#     + Perform training 
-#     + Perform detection on an image with newly trained weights
-#     + Perform detection on an video with newly trained weights
-
-# # Initialization
-
-# In[92]:
-
-
 from keras.models import Sequential, Model
 from keras.layers import Reshape, Activation, Conv2D, Input, MaxPooling2D, BatchNormalization, Flatten, Dense, Lambda
 from keras.layers.advanced_activations import LeakyReLU
@@ -43,10 +15,8 @@ import numpy as np
 import pickle
 import os, cv2
 from preprocessing import parse_annotation, BatchGenerator
-from utils import WeightReader, decode_netout, draw_boxes, normalize
-
-#os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-#os.environ["CUDA_VISIBLE_DEVICES"] = ""
+sys.path.append("..")
+from yolo_models import get_yolo2
 
 
 
@@ -82,10 +52,8 @@ TRUE_BOX_BUFFER  = 50
 print(len(LABELS))
 
 
-# In[94]:
 
 
-wt_path = 'yolo.weights'                      
 train_image_folder = 'train_images/' #/home/ctorney/data/coco/train2014/'
 train_annot_folder = 'train_images/'
 valid_image_folder = train_image_folder#'/home/ctorney/data/coco/val2014/'
@@ -560,8 +528,8 @@ num_val = num_ims//10
 valid_imgs = list(itemgetter(*indexes[:num_val].tolist())(all_imgs))
 train_imgs = list(itemgetter(*indexes[num_val:].tolist())(all_imgs))
 
-train_batch = BatchGenerator(train_imgs, generator_config, norm=normalize, jitter=False)
-valid_batch = BatchGenerator(valid_imgs, generator_config, norm=normalize, jitter=False)
+train_batch = BatchGenerator(train_imgs, generator_config, norm=normalize, jitter=True)
+valid_batch = BatchGenerator(valid_imgs, generator_config, norm=normalize, jitter=True)
 
 
 # In[104]:
@@ -578,11 +546,11 @@ print(len(valid_imgs))
 
 early_stop = EarlyStopping(monitor='val_loss', 
                            min_delta=0.001, 
-                           patience=3, 
+                           patience=10, 
                            mode='min', 
                            verbose=1)
 
-checkpoint = ModelCheckpoint('weights_coco.h5', 
+checkpoint = ModelCheckpoint('weights_yolo.h5', 
                              monitor='val_loss', 
                              verbose=1, 
                              save_best_only=True, 
@@ -609,13 +577,13 @@ model.compile(loss=custom_loss, optimizer=optimizer)
 
 model.fit_generator(generator        = train_batch, 
                     steps_per_epoch  = len(train_batch), 
-                    epochs           = 1, 
+                    epochs           = 100, 
                     verbose          = 1,
                     validation_data  = valid_batch,
                     validation_steps = len(valid_batch),
                     callbacks        = [early_stop, checkpoint],#, tensorboard], 
                     max_queue_size   = 3)
-model.save_weights('weights_coco.h5')
+model.save_weights('weights_yolo.h5')
 
 
 # # Perform detection on image
