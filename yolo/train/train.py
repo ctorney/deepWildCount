@@ -5,6 +5,8 @@ from keras.layers.advanced_activations import LeakyReLU
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.optimizers import SGD, Adam, RMSprop
 from keras.layers.merge import concatenate
+from keras.losses import categorical_crossentropy
+from keras.losses import binary_crossentropy
 #import matplotlib.pyplot as plt
 import keras.backend as K
 import tensorflow as tf
@@ -13,12 +15,14 @@ from tqdm import tqdm
 from imgaug import augmenters as iaa
 import numpy as np
 import pickle
-import os, cv2
+import os, sys, cv2
 from preprocessing import parse_annotation, BatchGenerator
 sys.path.append("..")
 from yolo_models import get_yolo2
 
 
+FROM_VOC=1
+CROSS_ENT=0
 
 # In[93]:
 
@@ -41,8 +45,8 @@ ANCHORS          = [2.0,2.0]
 
 # scales - for training maybe?? no idea
 # all seem to be in the custom loss function - some method to weight the loss
-NO_OBJECT_SCALE  = 1.0
-OBJECT_SCALE     = 5.0
+NO_OBJECT_SCALE  = 200.0# upping this to 5 (from 1) to get rid of false positives
+OBJECT_SCALE     = 200.0
 COORD_SCALE      = 1.0
 CLASS_SCALE      = 1.0
 
@@ -52,6 +56,7 @@ TRUE_BOX_BUFFER  = 50
 print(len(LABELS))
 
 
+#true_boxes  = Input(shape=(1, 1, 1, TRUE_BOX_BUFFER , 4))
 
 
 train_image_folder = 'train_images/' #/home/ctorney/data/coco/train2014/'
@@ -63,156 +68,164 @@ valid_annot_folder = train_annot_folder#'/home/ctorney/data/coco/val2014ann/'
 # # Construct the network
 
 # In[95]:
+#
+#
+##model = get_yolo2(IMAGE_W,IMAGE_H)
+#
+##
+### the function to implement the orgnization layer (thanks to github.com/allanzelener/YAD2K)
+#def space_to_depth_x2(x):
+#    return tf.space_to_depth(x, block_size=2)
+##
+##
+### In[96]:
+##
+##
+##
+#input_image = Input(shape=(IMAGE_H, IMAGE_W, 3))
+##true_boxes  = Input(shape=(1, 1, 1, TRUE_BOX_BUFFER , 4))
+##
+### Layer 1
+#x = Conv2D(32, (3,3), strides=(1,1), padding='same', name='conv_1', use_bias=False)(input_image)
+#x = BatchNormalization(name='norm_1')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#x = MaxPooling2D(pool_size=(2, 2))(x)
+##
+## Layer 2
+#x = Conv2D(64, (3,3), strides=(1,1), padding='same', name='conv_2', use_bias=False)(x)
+#x = BatchNormalization(name='norm_2')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#x = MaxPooling2D(pool_size=(2, 2))(x)
+#
+## Layer 3
+#x = Conv2D(128, (3,3), strides=(1,1), padding='same', name='conv_3', use_bias=False)(x)
+#x = BatchNormalization(name='norm_3')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 4
+#x = Conv2D(64, (1,1), strides=(1,1), padding='same', name='conv_4', use_bias=False)(x)
+#x = BatchNormalization(name='norm_4')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 5
+#x = Conv2D(128, (3,3), strides=(1,1), padding='same', name='conv_5', use_bias=False)(x)
+#x = BatchNormalization(name='norm_5')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#x = MaxPooling2D(pool_size=(2, 2))(x)
+#
+## Layer 6
+#x = Conv2D(256, (3,3), strides=(1,1), padding='same', name='conv_6', use_bias=False)(x)
+#x = BatchNormalization(name='norm_6')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 7
+#x = Conv2D(128, (1,1), strides=(1,1), padding='same', name='conv_7', use_bias=False)(x)
+#x = BatchNormalization(name='norm_7')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 8
+#x = Conv2D(256, (3,3), strides=(1,1), padding='same', name='conv_8', use_bias=False)(x)
+#x = BatchNormalization(name='norm_8')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#x = MaxPooling2D(pool_size=(2, 2))(x)
+#
+## Layer 9
+#x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_9', use_bias=False)(x)
+#x = BatchNormalization(name='norm_9')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 10
+#x = Conv2D(256, (1,1), strides=(1,1), padding='same', name='conv_10', use_bias=False)(x)
+#x = BatchNormalization(name='norm_10')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 11
+#x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_11', use_bias=False)(x)
+#x = BatchNormalization(name='norm_11')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 12
+#x = Conv2D(256, (1,1), strides=(1,1), padding='same', name='conv_12', use_bias=False)(x)
+#x = BatchNormalization(name='norm_12')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 13
+#x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_13', use_bias=False)(x)
+#x = BatchNormalization(name='norm_13')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+#skip_connection = x
+#
+#x = MaxPooling2D(pool_size=(2, 2))(x)
+#
+## Layer 14
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_14', use_bias=False)(x)
+#x = BatchNormalization(name='norm_14')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 15
+#x = Conv2D(512, (1,1), strides=(1,1), padding='same', name='conv_15', use_bias=False)(x)
+#x = BatchNormalization(name='norm_15')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 16
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_16', use_bias=False)(x)
+#x = BatchNormalization(name='norm_16')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 17
+#x = Conv2D(512, (1,1), strides=(1,1), padding='same', name='conv_17', use_bias=False)(x)
+#x = BatchNormalization(name='norm_17')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 18
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_18', use_bias=False)(x)
+#x = BatchNormalization(name='norm_18')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 19
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_19', use_bias=False)(x)
+#x = BatchNormalization(name='norm_19')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 20
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_20', use_bias=False)(x)
+#x = BatchNormalization(name='norm_20')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 21
+#skip_connection = Conv2D(64, (1,1), strides=(1,1), padding='same', name='conv_21', use_bias=False)(skip_connection)
+#skip_connection = BatchNormalization(name='norm_21')(skip_connection)
+#skip_connection = LeakyReLU(alpha=0.1)(skip_connection)
+#skip_connection = Lambda(space_to_depth_x2)(skip_connection)
+#
+#x = concatenate([skip_connection, x])
+#
+## Layer 22
+#x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_22', use_bias=False)(x)
+#x = BatchNormalization(name='norm_22')(x)
+#x = LeakyReLU(alpha=0.1)(x)
+#
+## Layer 23
+#x = Conv2D(BOX * (4 + 1 + CLASS), (1,1), strides=(1,1), padding='same', name='final')(x)
+#output = Reshape((GRID_H, GRID_W, BOX, 4 + 1 + CLASS))(x)
+#
+## small hack to allow true_boxes to be registered when Keras build the model 
+## for more information: https://github.com/fchollet/keras/issues/2790
+##output = Lambda(lambda args: args[0])([output, true_boxes])
+#
+##model = Model([input_image, true_boxes], output)
+#model = Model(input_image, output)
 
-
-# the function to implement the orgnization layer (thanks to github.com/allanzelener/YAD2K)
-def space_to_depth_x2(x):
-    return tf.space_to_depth(x, block_size=2)
-
-
-# In[96]:
-
-
-# CT - I'm guessing this is darknet-19
-
-input_image = Input(shape=(IMAGE_H, IMAGE_W, 3))
-true_boxes  = Input(shape=(1, 1, 1, TRUE_BOX_BUFFER , 4))
-
-# Layer 1
-x = Conv2D(32, (3,3), strides=(1,1), padding='same', name='conv_1', use_bias=False)(input_image)
-x = BatchNormalization(name='norm_1')(x)
-x = LeakyReLU(alpha=0.1)(x)
-x = MaxPooling2D(pool_size=(2, 2))(x)
-
-# Layer 2
-x = Conv2D(64, (3,3), strides=(1,1), padding='same', name='conv_2', use_bias=False)(x)
-x = BatchNormalization(name='norm_2')(x)
-x = LeakyReLU(alpha=0.1)(x)
-x = MaxPooling2D(pool_size=(2, 2))(x)
-
-# Layer 3
-x = Conv2D(128, (3,3), strides=(1,1), padding='same', name='conv_3', use_bias=False)(x)
-x = BatchNormalization(name='norm_3')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 4
-x = Conv2D(64, (1,1), strides=(1,1), padding='same', name='conv_4', use_bias=False)(x)
-x = BatchNormalization(name='norm_4')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 5
-x = Conv2D(128, (3,3), strides=(1,1), padding='same', name='conv_5', use_bias=False)(x)
-x = BatchNormalization(name='norm_5')(x)
-x = LeakyReLU(alpha=0.1)(x)
-x = MaxPooling2D(pool_size=(2, 2))(x)
-
-# Layer 6
-x = Conv2D(256, (3,3), strides=(1,1), padding='same', name='conv_6', use_bias=False)(x)
-x = BatchNormalization(name='norm_6')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 7
-x = Conv2D(128, (1,1), strides=(1,1), padding='same', name='conv_7', use_bias=False)(x)
-x = BatchNormalization(name='norm_7')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 8
-x = Conv2D(256, (3,3), strides=(1,1), padding='same', name='conv_8', use_bias=False)(x)
-x = BatchNormalization(name='norm_8')(x)
-x = LeakyReLU(alpha=0.1)(x)
-x = MaxPooling2D(pool_size=(2, 2))(x)
-
-# Layer 9
-x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_9', use_bias=False)(x)
-x = BatchNormalization(name='norm_9')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 10
-x = Conv2D(256, (1,1), strides=(1,1), padding='same', name='conv_10', use_bias=False)(x)
-x = BatchNormalization(name='norm_10')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 11
-x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_11', use_bias=False)(x)
-x = BatchNormalization(name='norm_11')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 12
-x = Conv2D(256, (1,1), strides=(1,1), padding='same', name='conv_12', use_bias=False)(x)
-x = BatchNormalization(name='norm_12')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 13
-x = Conv2D(512, (3,3), strides=(1,1), padding='same', name='conv_13', use_bias=False)(x)
-x = BatchNormalization(name='norm_13')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-skip_connection = x
-
-x = MaxPooling2D(pool_size=(2, 2))(x)
-
-# Layer 14
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_14', use_bias=False)(x)
-x = BatchNormalization(name='norm_14')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 15
-x = Conv2D(512, (1,1), strides=(1,1), padding='same', name='conv_15', use_bias=False)(x)
-x = BatchNormalization(name='norm_15')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 16
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_16', use_bias=False)(x)
-x = BatchNormalization(name='norm_16')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 17
-x = Conv2D(512, (1,1), strides=(1,1), padding='same', name='conv_17', use_bias=False)(x)
-x = BatchNormalization(name='norm_17')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 18
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_18', use_bias=False)(x)
-x = BatchNormalization(name='norm_18')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 19
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_19', use_bias=False)(x)
-x = BatchNormalization(name='norm_19')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 20
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_20', use_bias=False)(x)
-x = BatchNormalization(name='norm_20')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 21
-skip_connection = Conv2D(64, (1,1), strides=(1,1), padding='same', name='conv_21', use_bias=False)(skip_connection)
-skip_connection = BatchNormalization(name='norm_21')(skip_connection)
-skip_connection = LeakyReLU(alpha=0.1)(skip_connection)
-skip_connection = Lambda(space_to_depth_x2)(skip_connection)
-
-x = concatenate([skip_connection, x])
-
-# Layer 22
-x = Conv2D(1024, (3,3), strides=(1,1), padding='same', name='conv_22', use_bias=False)(x)
-x = BatchNormalization(name='norm_22')(x)
-x = LeakyReLU(alpha=0.1)(x)
-
-# Layer 23
-x = Conv2D(BOX * (4 + 1 + CLASS), (1,1), strides=(1,1), padding='same', name='conv_23')(x)
-output = Reshape((GRID_H, GRID_W, BOX, 4 + 1 + CLASS))(x)
-
-# small hack to allow true_boxes to be registered when Keras build the model 
-# for more information: https://github.com/fchollet/keras/issues/2790
-output = Lambda(lambda args: args[0])([output, true_boxes])
-
-model = Model([input_image, true_boxes], output)
+model = get_yolo2(IMAGE_W,IMAGE_H)
 
 
 # In[97]:
 
 
+#freeze darknet-19
+#for layer in model.layers[:-18]:
+#        layer.trainable = False
 print(model.summary())
 # each grid cell is going to predict 80 - classes + 5 bounding box parameters, 2*size/pos and one for objectedness??
 
@@ -224,114 +237,23 @@ print(model.summary())
 # In[98]:
 
 
-weight_reader = WeightReader(wt_path)
+# transfer learning from coco
+if FROM_VOC:
+    model.load_weights('../weights/weights_coco.h5', by_name=True)
+else:
+    model.load_weights('../weights/wb_yolo.h5') 
+    #model.load_weights('../weights/wb_ce_yolo.h5') 
+#model.load_weights('../weights/darknet19-cls.h5', by_name=True)
+#weight_reader = WeightReader(wt_path)
 
+if FROM_VOC:
+    layer   = model.layers[-2] # the last convolutional layer
+    weights = layer.get_weights()
 
-# In[99]:
+    new_kernel = np.random.normal(size=weights[0].shape)/(GRID_H*GRID_W)
+    new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
 
-
-
-# this converts the yolo weights format to keras
-weight_reader.reset()
-nb_conv = 23
-
-for i in range(1, nb_conv+1):
-    conv_layer = model.get_layer('conv_' + str(i))
-    
-    if i < nb_conv:
-        norm_layer = model.get_layer('norm_' + str(i))
-        
-        size = np.prod(norm_layer.get_weights()[0].shape)
-
-        beta  = weight_reader.read_bytes(size)
-        gamma = weight_reader.read_bytes(size)
-        mean  = weight_reader.read_bytes(size)
-        var   = weight_reader.read_bytes(size)
-
-        weights = norm_layer.set_weights([gamma, beta, mean, var])       
-        
-    if len(conv_layer.get_weights()) > 1:
-        bias   = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[1].shape))
-        kernel = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[0].shape))
-        kernel = kernel.reshape(list(reversed(conv_layer.get_weights()[0].shape)))
-        kernel = kernel.transpose([2,3,1,0])
-        conv_layer.set_weights([kernel, bias])
-    else:
-        kernel = weight_reader.read_bytes(np.prod(conv_layer.get_weights()[0].shape))
-        kernel = kernel.reshape(list(reversed(conv_layer.get_weights()[0].shape)))
-        kernel = kernel.transpose([2,3,1,0])
-        conv_layer.set_weights([kernel])
-
-
-# **Randomize weights of the last layer**
-
-# In[100]:
-
-
-layer   = model.layers[-4] # the last convolutional layer
-weights = layer.get_weights()
-
-new_kernel = np.random.normal(size=weights[0].shape)/(GRID_H*GRID_W)
-new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
-
-layer.set_weights([new_kernel, new_bias])
-
-
-# # Perform training
-
-# **Loss function**
-
-# $$\begin{multline}
-# \lambda_\textbf{coord}
-# \sum_{i = 0}^{S^2}
-#     \sum_{j = 0}^{B}
-#      L_{ij}^{\text{obj}}
-#             \left[
-#             \left(
-#                 x_i - \hat{x}_i
-#             \right)^2 +
-#             \left(
-#                 y_i - \hat{y}_i
-#             \right)^2
-#             \right]
-# \\
-# + \lambda_\textbf{coord} 
-# \sum_{i = 0}^{S^2}
-#     \sum_{j = 0}^{B}
-#          L_{ij}^{\text{obj}}
-#          \left[
-#         \left(
-#             \sqrt{w_i} - \sqrt{\hat{w}_i}
-#         \right)^2 +
-#         \left(
-#             \sqrt{h_i} - \sqrt{\hat{h}_i}
-#         \right)^2
-#         \right]
-# \\
-# + \sum_{i = 0}^{S^2}
-#     \sum_{j = 0}^{B}
-#         L_{ij}^{\text{obj}}
-#         \left(
-#             C_i - \hat{C}_i
-#         \right)^2
-# \\
-# + \lambda_\textrm{noobj}
-# \sum_{i = 0}^{S^2}
-#     \sum_{j = 0}^{B}
-#     L_{ij}^{\text{noobj}}
-#         \left(
-#             C_i - \hat{C}_i
-#         \right)^2
-# \\
-# + \sum_{i = 0}^{S^2}
-# L_i^{\text{obj}}
-#     \sum_{c \in \textrm{classes}}
-#         \left(
-#             p_i(c) - \hat{p}_i(c)
-#         \right)^2
-# \end{multline}$$
-
-# In[101]:
+    layer.set_weights([new_kernel, new_bias])
 
 
 def custom_loss(y_true, y_pred):
@@ -340,7 +262,7 @@ def custom_loss(y_true, y_pred):
     cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(GRID_W), [GRID_H]), (1, GRID_H, GRID_W, 1, 1)))
     cell_y = tf.transpose(cell_x, (0,2,1,3,4))
 
-    cell_grid = tf.tile(tf.concat([cell_x,cell_y], -1), [BATCH_SIZE, 1, 1, 5, 1])
+    cell_grid = tf.tile(tf.concat([cell_x,cell_y], -1), [BATCH_SIZE, 1, 1, BOX, 1])
     
     coord_mask = tf.zeros(mask_shape)
     conf_mask  = tf.zeros(mask_shape)
@@ -404,11 +326,36 @@ def custom_loss(y_true, y_pred):
     ### coordinate mask: simply the position of the ground truth boxes (the predictors)
     coord_mask = tf.expand_dims(y_true[..., 4], axis=-1) * COORD_SCALE
     
-    ### confidence mask: penelize predictors + penalize boxes with low IOU
+    ### confidence mask: penalize predictors + penalize boxes with low IOU
     # penalize the confidence of the boxes, which have IOU with some ground truth box < 0.6
-    true_xy = true_boxes[..., 0:2]
-    true_wh = true_boxes[..., 2:4]
+    #true_xy = true_boxes[..., 0:2]
+    #true_wh = true_boxes[..., 2:4]
     
+    #true_wh_half = true_wh / 2.
+    #true_mins    = true_xy - true_wh_half
+    #true_maxes   = true_xy + true_wh_half
+    
+    #pred_xy = tf.expand_dims(pred_box_xy, 4)
+    #pred_wh = tf.expand_dims(pred_box_wh, 4)
+    
+    #pred_wh_half = pred_wh / 2.
+    #pred_mins    = pred_xy - pred_wh_half
+    #pred_maxes   = pred_xy + pred_wh_half    
+    
+    #intersect_mins  = tf.maximum(pred_mins,  true_mins)
+    #intersect_maxes = tf.minimum(pred_maxes, true_maxes)
+    #intersect_wh    = tf.maximum(intersect_maxes - intersect_mins, 0.)
+    #intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
+    
+    #true_areas = true_wh[..., 0] * true_wh[..., 1]
+    #pred_areas = pred_wh[..., 0] * pred_wh[..., 1]
+
+    #union_areas = pred_areas + true_areas - intersect_areas
+    #iou_scores  = tf.truediv(intersect_areas, union_areas)
+
+    #best_ious3 = tf.reduce_max(iou_scores, axis=4)
+    true_xy = y_true[..., 0:2]
+    true_wh = y_true[..., 2:4]
     true_wh_half = true_wh / 2.
     true_mins    = true_xy - true_wh_half
     true_maxes   = true_xy + true_wh_half
@@ -416,9 +363,9 @@ def custom_loss(y_true, y_pred):
     pred_xy = tf.expand_dims(pred_box_xy, 4)
     pred_wh = tf.expand_dims(pred_box_wh, 4)
     
-    pred_wh_half = pred_wh / 2.
-    pred_mins    = pred_xy - pred_wh_half
-    pred_maxes   = pred_xy + pred_wh_half    
+    pred_wh_half = pred_box_wh / 2.
+    pred_mins    = pred_box_xy - pred_wh_half
+    pred_maxes   = pred_box_xy + pred_wh_half    
     
     intersect_mins  = tf.maximum(pred_mins,  true_mins)
     intersect_maxes = tf.minimum(pred_maxes, true_maxes)
@@ -426,12 +373,14 @@ def custom_loss(y_true, y_pred):
     intersect_areas = intersect_wh[..., 0] * intersect_wh[..., 1]
     
     true_areas = true_wh[..., 0] * true_wh[..., 1]
-    pred_areas = pred_wh[..., 0] * pred_wh[..., 1]
+    pred_areas = pred_box_wh[..., 0] * pred_box_wh[..., 1]
 
     union_areas = pred_areas + true_areas - intersect_areas
     iou_scores  = tf.truediv(intersect_areas, union_areas)
 
-    best_ious = tf.reduce_max(iou_scores, axis=4)
+    best_ious = tf.reduce_max(iou_scores, axis=-1)
+    best_ious = tf.expand_dims(best_ious, -1)
+    ## CHANGED UP TO HERE
     conf_mask = conf_mask + tf.to_float(best_ious < 0.6) * (1 - y_true[..., 4]) * NO_OBJECT_SCALE
     
     # penalize the confidence of the boxes, which are reponsible for corresponding ground truth box
@@ -468,15 +417,20 @@ def custom_loss(y_true, y_pred):
     loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
     
     loss = loss_xy + loss_wh + loss_conf + loss_class
+
+    #pred_box_conf = tf.sigmoid(y_pred[..., 4])
+    #true_box_conf = y_true[..., 4]
+    #loss_fp  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf))
+    #loss = loss/2. + loss_fp/2.
     
-    nb_true_box = tf.reduce_sum(y_true[..., 4])
-    nb_pred_box = tf.reduce_sum(tf.to_float(true_box_conf > 0.5) * tf.to_float(pred_box_conf > 0.3))
+    #nb_true_box = tf.reduce_sum(y_true[..., 4])
+    #nb_pred_box = tf.reduce_sum(tf.to_float(true_box_conf > 0.5) * tf.to_float(pred_box_conf > 0.3))
 
     """
     Debugging code
     """    
-    current_recall = nb_pred_box/(nb_true_box + 1e-6)
-    total_recall = tf.assign_add(total_recall, current_recall) 
+    #current_recall = nb_pred_box/(nb_true_box + 1e-6)
+    #total_recall = tf.assign_add(total_recall, current_recall) 
 
     #loss = tf.Print(loss, [tf.zeros((1))], message='Dummy Line \t', summarize=1000)
     #loss = tf.Print(loss, [loss_xy], message='Loss XY \t', summarize=1000)
@@ -486,13 +440,31 @@ def custom_loss(y_true, y_pred):
     #loss = tf.Print(loss, [loss], message='Total Loss \t', summarize=1000)
     #loss = tf.Print(loss, [current_recall], message='Current Recall \t', summarize=1000)
     #loss = tf.Print(loss, [total_recall/seen], message='Average Recall \t', summarize=1000)
+    #loss = tf.Print(loss, [tf.shape(best_ious)], message='pred \t', summarize=1000)
+    #loss = tf.Print(loss, [tf.shape(best_ious3)], message='true \t', summarize=1000)
     
     return loss
 
 
-# **Parse the annotations to construct train generator and validation generator**
+def custom_ce_loss(y_true, y_pred):
+    ### adjust confidence
+    pred_box_conf = tf.sigmoid(y_pred[..., 4])
+    true_box_conf = y_true[..., 4]
+ #   cce = binary_crossentropy(true_box_conf, pred_box_conf) 
+ #   cce = tf.Print(cce, [tf.shape(true_box_conf)], message='true \t', summarize=1000)
+ #   cce = tf.Print(cce, [tf.shape(pred_box_conf)], message='pred \t', summarize=1000)
+    cce  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf))
+    return cce
+    
 
-# In[102]:
+def focal_loss(y_true, y_pred):
+    gamma=2.
+    alpha=0.5
+    y_pred_in = tf.sigmoid(y_pred[..., 4])
+    y_true_in = y_true[..., 4]
+    pt_1 = tf.where(tf.equal(y_true_in, 1), y_pred_in, tf.ones_like(y_pred_in))
+    pt_0 = tf.where(tf.equal(y_true_in, 0), y_pred_in, tf.zeros_like(y_pred_in))
+    return -K.sum(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1))-K.sum((1-alpha) * K.pow( pt_0, gamma) * K.log(1. - pt_0))
 
 
 generator_config = {
@@ -509,8 +481,6 @@ generator_config = {
 }
 
 
-# In[103]:
-
 
 from operator import itemgetter
 import random
@@ -523,20 +493,22 @@ num_ims = len(all_imgs)
 indexes = np.arange(num_ims)
 random.shuffle(indexes)
 
-num_val = num_ims//10
+num_val = 0#num_ims//10
 
-valid_imgs = list(itemgetter(*indexes[:num_val].tolist())(all_imgs))
+#valid_imgs = list(itemgetter(*indexes[:num_val].tolist())(all_imgs))
 train_imgs = list(itemgetter(*indexes[num_val:].tolist())(all_imgs))
 
-train_batch = BatchGenerator(train_imgs, generator_config, norm=normalize, jitter=True)
-valid_batch = BatchGenerator(valid_imgs, generator_config, norm=normalize, jitter=True)
+def normalize(image):
+    image = image / 255.
+    
+    return image
+train_batch = BatchGenerator(train_imgs, generator_config, norm=normalize, jitter=False)
+#valid_batch = BatchGenerator(valid_imgs, generator_config, norm=normalize, jitter=False)
 
 
 # In[104]:
 
 
-print(len(train_imgs))
-print(len(valid_imgs))
 
 
 # **Setup a few callbacks and start the training**
@@ -544,46 +516,43 @@ print(len(valid_imgs))
 # In[105]:
 
 
+
+if CROSS_ENT:
+    optimizer = SGD(lr=1e-5, decay=0.0005, momentum=0.9)
+    #optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+ #   model.compile(loss=custom_ce_loss, optimizer=optimizer)
+    model.compile(loss=focal_loss, optimizer=optimizer)
+
+    wt_file='../weights/wb_ce_yolo.h5'
+
+else:
+    optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.compile(loss=custom_loss, optimizer=optimizer)
+    wt_file='../weights/wb_yolo.h5'
+#optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
 early_stop = EarlyStopping(monitor='val_loss', 
                            min_delta=0.001, 
-                           patience=10, 
+                           patience=5, 
                            mode='min', 
                            verbose=1)
 
-checkpoint = ModelCheckpoint('weights_yolo.h5', 
+checkpoint = ModelCheckpoint(wt_file, 
                              monitor='val_loss', 
                              verbose=1, 
                              save_best_only=True, 
                              mode='min', 
                              period=1)
-print(len(valid_batch))
-print(len(train_batch))
 
-
-# In[ ]:
-
-
-#tb_counter  = len([log for log in os.listdir(os.path.expanduser('~/logs/')) if 'coco_' in log]) + 1
-#tensorboard = TensorBoard(log_dir=os.path.expanduser('~/logs/') + 'coco_' + '_' + str(tb_counter), 
-#                          histogram_freq=0, 
-#                          write_graph=True, 
-#                          write_images=False)
-
-optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-#optimizer = SGD(lr=1e-4, decay=0.0005, momentum=0.9)
-#optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
-
-model.compile(loss=custom_loss, optimizer=optimizer)
 
 model.fit_generator(generator        = train_batch, 
                     steps_per_epoch  = len(train_batch), 
-                    epochs           = 100, 
+                    epochs           = 10, 
                     verbose          = 1,
-                    validation_data  = valid_batch,
-                    validation_steps = len(valid_batch),
-                    callbacks        = [early_stop, checkpoint],#, tensorboard], 
+            #        validation_data  = valid_batch,
+            #        validation_steps = len(valid_batch),
+                    callbacks        = [checkpoint],# , early_stop],#, tensorboard], 
                     max_queue_size   = 3)
-model.save_weights('weights_yolo.h5')
+model.save_weights(wt_file)
 
 
 # # Perform detection on image
