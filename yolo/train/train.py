@@ -16,12 +16,13 @@ from imgaug import augmenters as iaa
 import numpy as np
 import pickle
 import os, sys, cv2
+import time
 from preprocessing import parse_annotation, BatchGenerator
 sys.path.append("..")
 from yolo_models import get_yolo2
 
 
-FROM_VOC=1
+FROM_VOC=0
 CROSS_ENT=0
 
 # In[93]:
@@ -45,8 +46,8 @@ ANCHORS          = [2.0,2.0]
 
 # scales - for training maybe?? no idea
 # all seem to be in the custom loss function - some method to weight the loss
-NO_OBJECT_SCALE  = 200.0# upping this to 5 (from 1) to get rid of false positives
-OBJECT_SCALE     = 200.0
+NO_OBJECT_SCALE  = 1.0# upping this to 5 (from 1) to get rid of false positives
+OBJECT_SCALE     = 5.0
 COORD_SCALE      = 1.0
 CLASS_SCALE      = 1.0
 
@@ -224,9 +225,6 @@ model = get_yolo2(IMAGE_W,IMAGE_H)
 
 
 #freeze darknet-19
-#for layer in model.layers[:-18]:
-#        layer.trainable = False
-print(model.summary())
 # each grid cell is going to predict 80 - classes + 5 bounding box parameters, 2*size/pos and one for objectedness??
 
 
@@ -240,13 +238,17 @@ print(model.summary())
 # transfer learning from coco
 if FROM_VOC:
     model.load_weights('../weights/weights_coco.h5', by_name=True)
-else:
-    model.load_weights('../weights/wb_yolo.h5') 
     #model.load_weights('../weights/wb_ce_yolo.h5') 
 #model.load_weights('../weights/darknet19-cls.h5', by_name=True)
 #weight_reader = WeightReader(wt_path)
 
-if FROM_VOC:
+#    layer   = model.layers[-3] # the last convolutional layer
+#    weights = layer.get_weights()
+
+#    new_kernel = np.random.normal(size=weights[0].shape)/(GRID_H*GRID_W)
+#    new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
+
+ #   layer.set_weights([new_kernel, new_bias])
     layer   = model.layers[-2] # the last convolutional layer
     weights = layer.get_weights()
 
@@ -254,9 +256,13 @@ if FROM_VOC:
     new_bias   = np.random.normal(size=weights[1].shape)/(GRID_H*GRID_W)
 
     layer.set_weights([new_kernel, new_bias])
+    for layer in model.layers[:-3]:
+        layer.trainable = False
+else:
+    model.load_weights('../weights/wb_yolo.h5') 
+print(model.summary())
 
-
-def custom_loss(y_true, y_pred):
+def custom_loss_old(y_true, y_pred):
     mask_shape = tf.shape(y_true)[:4]
     
     cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(GRID_W), [GRID_H]), (1, GRID_H, GRID_W, 1, 1)))
@@ -416,12 +422,76 @@ def custom_loss(y_true, y_pred):
     loss_class = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=true_box_class, logits=pred_box_class)
     loss_class = tf.reduce_sum(loss_class * class_mask) / (nb_class_box + 1e-6)
     
-    loss = loss_xy + loss_wh + loss_conf + loss_class
 
-    #pred_box_conf = tf.sigmoid(y_pred[..., 4])
-    #true_box_conf = y_true[..., 4]
-    #loss_fp  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf))
-    #loss = loss/2. + loss_fp/2.
+    pred_box_conf = tf.sigmoid(y_pred[..., 4])
+    true_box_conf = y_true[..., 4]
+    loss_fp  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf))
+ #   loss = loss/2. + loss_fp/2.
+    loss = loss_xy + loss_wh + loss_conf + loss_class
+    
+    #nb_true_box = tf.reduce_sum(y_true[..., 4])
+    #nb_pred_box = tf.reduce_sum(tf.to_float(true_box_conf > 0.5) * tf.to_float(pred_box_conf > 0.3))
+
+    """
+    Debugging code
+    """    
+    #current_recall = nb_pred_box/(nb_true_box + 1e-6)
+    #total_recall = tf.assign_add(total_recall, current_recall) 
+
+    #loss = tf.Print(loss, [tf.zeros((1))], message='Dummy Line \t', summarize=1000)
+    #loss = tf.Print(loss, [loss_xy], message='Loss XY \t', summarize=1000)
+    #loss = tf.Print(loss, [loss_wh], message='Loss WH \t', summarize=1000)
+    #loss = tf.Print(loss, [loss_conf], message='Loss Conf \t', summarize=1000)
+    #loss = tf.Print(loss, [loss_class], message='Loss Class \t', summarize=1000)
+    #loss = tf.Print(loss, [loss], message='Total Loss \t', summarize=1000)
+    #loss = tf.Print(loss, [current_recall], message='Current Recall \t', summarize=1000)
+    #loss = tf.Print(loss, [total_recall/seen], message='Average Recall \t', summarize=1000)
+    #loss = tf.Print(loss, [tf.shape(best_ious)], message='pred \t', summarize=1000)
+    #loss = tf.Print(loss, [tf.shape(best_ious3)], message='true \t', summarize=1000)
+    
+    return loss
+
+def custom_loss(y_true, y_pred):
+    mask_shape = tf.shape(y_true)[:3]
+    
+    cell_x = tf.to_float(tf.reshape(tf.tile(tf.range(GRID_W), [GRID_H]), (1, GRID_H, GRID_W,1)))
+    cell_y = tf.transpose(cell_x, (0,2,1,3))
+
+    cell_grid = tf.tile(tf.concat([cell_x,cell_y], -1), [BATCH_SIZE, 1, 1,1])
+    
+    coord_mask = tf.zeros(mask_shape)
+    conf_mask  = tf.ones(mask_shape)
+    ### adjust x and y      
+    pred_box_xy = tf.sigmoid(y_pred[..., :2]) + cell_grid
+    
+    ### adjust confidence
+    pred_box_conf = y_pred[..., 2]
+    
+    ### adjust x and y
+    true_box_xy = y_true[..., 0:2] # relative position to the containing cell
+    ### coordinate mask: simply the position of the ground truth boxes (the predictors)
+    coord_mask = tf.expand_dims(y_true[..., 2], axis=-1) * COORD_SCALE
+    
+    
+    true_box_conf = y_true[..., 2]
+    
+    nb_conf_box  = tf.reduce_sum(tf.to_float(conf_mask  > 0.0))
+    
+    loss_conf  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf) * conf_mask)  / (nb_conf_box  + 1e-6) / 2.
+    """
+    Finalize the loss
+    """
+    nb_coord_box = tf.reduce_sum(tf.to_float(coord_mask > 0.0))
+    
+    loss_xy    = tf.reduce_sum(tf.square(true_box_xy-pred_box_xy)     * coord_mask) / (nb_coord_box + 1e-6) / 2.
+
+
+ #   loss_fp  = tf.reduce_sum(tf.square(true_box_conf-pred_box_conf))
+ #   loss = loss/2. + loss_fp/2.
+    loss = loss_xy + loss_conf#+ loss_conf + loss_class
+
+    
+    return loss
     
     #nb_true_box = tf.reduce_sum(y_true[..., 4])
     #nb_pred_box = tf.reduce_sum(tf.to_float(true_box_conf > 0.5) * tf.to_float(pred_box_conf > 0.3))
@@ -527,7 +597,8 @@ if CROSS_ENT:
 
 else:
     optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    model.compile(loss=custom_loss, optimizer=optimizer)
+#    optimizer = SGD(lr=1e-5, decay=0.0005, momentum=0.9)
+    model.compile(loss=custom_loss_old, optimizer=optimizer)
     wt_file='../weights/wb_yolo.h5'
 #optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
 early_stop = EarlyStopping(monitor='val_loss', 
@@ -544,14 +615,17 @@ checkpoint = ModelCheckpoint(wt_file,
                              period=1)
 
 
+start = time.time()
 model.fit_generator(generator        = train_batch, 
                     steps_per_epoch  = len(train_batch), 
-                    epochs           = 10, 
+                    epochs           = 2, 
                     verbose          = 1,
             #        validation_data  = valid_batch,
             #        validation_steps = len(valid_batch),
-                    callbacks        = [checkpoint],# , early_stop],#, tensorboard], 
+ #                   callbacks        = [checkpoint],# , early_stop],#, tensorboard], 
                     max_queue_size   = 3)
+end = time.time()
+print('Training took ' + str(end - start) + ' seconds')
 model.save_weights(wt_file)
 
 
