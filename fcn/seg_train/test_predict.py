@@ -19,18 +19,22 @@ from fcn_networks import *
 import numpy as np
 import random
 import cv2
+
+gpu_options = tf.GPUOptions(allow_growth=True)
+session = tf.InteractiveSession(config=tf.ConfigProto(gpu_options=gpu_options))
+
 num_classes = 2
 
-mfcn8s = fcn_32s_model()
+mfcn8s = fcn_8s_model(4864//2,4864//2)
 
 print(mfcn8s.summary())
 
 ROOTDIR = '../../'
 image_dir = ROOTDIR + '/data/2015/'
-img = cv2.imread(image_dir + 'SWC1077.JPG')
+img = cv2.imread(image_dir + 'SWC1077.JPG') #1149.JPG')
 
 
-img = img[:512,:512,:]
+img = img[:4864//2,:4864//2,:]
 im = img.astype('float32')/255
 ny = im.shape[0]
 nx = im.shape[1]
@@ -38,30 +42,30 @@ nx = im.shape[1]
 print(im.shape)
 num_classes = 2
 
-# load base model
-base_model = VGG16(weights='imagenet',include_top=False,input_shape=im.shape) 
+## load base model
+#base_model = VGG16(weights='imagenet',include_top=False,input_shape=im.shape) 
 
-fcn_model = Sequential()
-for l in base_model.layers:
-    fcn_model.add(l)
+#fcn_model = Sequential()
+#for l in base_model.layers:
+#    fcn_model.add(l)
 
 
-fcn_model.add(Conv2D(256, (1,1), activation='relu', name='fc1',padding='VALID',input_shape=base_model.output_shape[1:]))
-fcn_model.add(Dropout(0.5))
-fcn_model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
+#fcn_model.add(Conv2D(256, (1,1), activation='relu', name='fc1',padding='VALID',input_shape=base_model.output_shape[1:]))
+#fcn_model.add(Dropout(0.5))
+#fcn_model.add(Conv2D(num_classes, (1, 1), activation='sigmoid', name='predictions'))
 
 #load classifier weights
-fcn_model.load_weights('../weights/vgg16-cls.h5')
+#fcn_model.load_weights('../weights/vgg16-cls.h5')
 
 # add final bilinear interpolation layer
-def resize_bilinear(images):
-    return tf.image.resize_bilinear(images, [nx,ny])
-fcn_model.add(Lambda(resize_bilinear))
+#def resize_bilinear(images):
+#    return tf.image.resize_bilinear(images, [nx,ny])
+#fcn_model.add(Lambda(resize_bilinear))
 
 
-layer_name = 'final_low_res'
+#layer_name = 'final_low_res'
 #layer_name = 'predictions'
-i_model = Model(inputs=mfcn8s.input,outputs=mfcn8s.get_layer(layer_name).output)
+#i_model = Model(inputs=mfcn8s.input,outputs=mfcn8s.get_layer(layer_name).output)
 ##intermediate_output = intermediate_layer_model.predict(data)
 #print(i_model.summary())
 #
@@ -71,22 +75,25 @@ i_model = Model(inputs=mfcn8s.input,outputs=mfcn8s.get_layer(layer_name).output)
 #fcn_model.add(Lambda(resize_bilinear))
 
 #print(fcn_model.summary())
-preds = fcn_model.predict(im[None,:])
-output = np.argmax(preds[0,:,:,:],2)
+#preds = fcn_model.predict(im[None,:])
+#output = np.argmax(preds[0,:,:,:],2)
 #output = preds[0,:,:,1]
-outRGB = cv2.cvtColor((255*output).astype(np.uint8),cv2.COLOR_GRAY2BGR)
-cv2.imwrite('test_out.png',outRGB)
-cv2.imwrite('test_in.png',img)
+#outRGB = cv2.cvtColor((255*output).astype(np.uint8),cv2.COLOR_GRAY2BGR)
+#cv2.imwrite('test_out.png',outRGB)
+#cv2.imwrite('test_in.png',img)
 preds = mfcn8s.predict(im[None,:])
 #preds = i_model.predict(im[None,:])
 output = np.argmax(preds[0,:,:,:],2)
-output = preds[0,:,:,1]
+#output = np.power(preds[0,:,:,1],3)
+np.save('output.npy', output)
 outRGB = cv2.cvtColor((255*output).astype(np.uint8),cv2.COLOR_GRAY2BGR)
 cv2.imwrite('test_out8s.png',outRGB)
 cv2.imwrite('test_in8s.png',img)
+output = preds[0,:,:,1]
 img = cv2.imread(image_dir + 'labels/SWC1077.png')
-img = img[:512,:512,:]
+#img = img[:512,:512,:]
 cv2.imwrite('test_label.png',img)
+
 
 
 import math
@@ -100,8 +107,8 @@ def binary_crossentropy(y_true, y_pred):
 img = np.array(img)[:, : , 0]
             #print(np.sum(img[:,:]))
             #correct for pixel intensity
-input_ = np.around((img * (2 - 1)) / 255.0)
-print(binary_crossentropy(input_,output))
+#input_ = np.around((img * (2 - 1)) / 255.0)
+#print(binary_crossentropy(input_,output))
 
 
 #for p in input_:

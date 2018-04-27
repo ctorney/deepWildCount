@@ -23,17 +23,21 @@ def weighted_categorical_crossentropy_fcn_loss(y_true, y_pred):
     wcce = cce * y_true_weights_maxed
     return (wcce)
 
-model_type = 32 # model can be 32s, 16s or 8s
-batch_size = 32
-batch_size_val = 8
-epochs = 250
-lr_base = 1e-6#0.01 * (float(batch_size) / 16)
+model_type = 8 # model can be 32s, 16s or 8s
+batch_size = 1
+batch_size_val = 1
+epochs = 10
+lr_base = 1e-7#0.01 * (float(batch_size) / 16)
 target_size = (512, 512)
-class_weights = [1,1200]#0.50038, 666.47713]
+class_weights = [1,19000]#0.50038, 666.47713]
+class_weights = [1,1]#0.50038, 666.47713]
 
 ROOTDIR = '../../'
 
+# all training data
 train_file_path = os.path.expanduser(ROOTDIR + '/data/2015-checked-train.txt')
+# images with wildebeest present only
+train_file_path = os.path.expanduser(ROOTDIR + '/data/2015-checked-train-w.txt')
 val_file_path   = os.path.expanduser(ROOTDIR + '/data/2015-checked-train.txt')
 data_dir        = os.path.expanduser( ROOTDIR + '/data/2015/')
 label_dir       =  os.path.expanduser( ROOTDIR + '/data/2015/labels/')
@@ -71,7 +75,7 @@ if model_type==32:
 #model.load_weights('fcn_cifar10_weights_from_classifier.h5')
 
 #optimizer = Nadam()
-optimizer = SGD(lr=lr_base, momentum=0.9)
+optimizer = SGD(lr=lr_base) #, momentum=0.9)
 
 #model.compile(loss=loss_fn,
 model.compile(loss=loss_fn,#'categorical_crossentropy',
@@ -86,7 +90,7 @@ callbacks = [checkpoint]
 
 # ################### early stopping ########################
 earlystopping = EarlyStopping(monitor='val_loss', patience=6, verbose=1)
-callbacks.append(earlystopping)
+#callbacks.append(earlystopping)
 
 # set data generator and train
 
@@ -96,23 +100,19 @@ def get_file_len(file_path):
     fp.close()
     return len(lines)
 
-# from Keras documentation: Total number of steps (batches of samples) to yield from generator before declaring one epoch finished
-# and starting the next epoch. It should typically be equal to the number of unique samples of your dataset divided by the batch size.
-#
-# As we are using samples taken from tiles of images and a certain similarity within an image is a reasonable assumption,
-# I am reducing the steps per epoch to a lower amount
-steps_per_epoch = 200 #int(np.ceil(((7360 // target_size[0]) * (4912 // target_size[1]) * get_file_len(train_file_path)) / float(batch_size)))
+# epoch should correspond to running through the entire training set once
+steps_per_epoch = int(np.ceil(((7360 // target_size[0]) * (4912 // target_size[1]) * get_file_len(train_file_path)) / float(batch_size)))
 
-training_generator = SegDataGen(train_file_path,target_size[0],target_size[1],batch_size, class_weights).generate(data_dir,label_dir,classes)
-test_generator = SegDataGen(val_file_path,target_size[0],target_size[1],batch_size_val, class_weights).generate(data_dir,label_dir,classes)
+training_generator = SegDataGen(train_file_path,target_size[0],target_size[1],batch_size, class_weights, data_dir, label_dir).generate(classes)
+test_generator = SegDataGen(val_file_path,target_size[0],target_size[1],batch_size_val, class_weights, data_dir, label_dir).generate(classes)
 
 history = model.fit_generator(
     generator=training_generator,
     steps_per_epoch = steps_per_epoch,
     epochs = epochs,
     callbacks = callbacks,
-    validation_steps = steps_per_epoch // 5, #int(np.ceil(((7360 // target_size[0]) * (4912 // target_size[1]) * get_file_len(train_file_path)) / float(batch_size))), 
+    validation_steps = 32,#steps_per_epoch // 5, #int(np.ceil(((7360 // target_size[0]) * (4912 // target_size[1]) * get_file_len(train_file_path)) / float(batch_size))), 
     validation_data = test_generator
     )
 
-model.save_weights('fcn_' + str(model_type) + 's_weights.h5')
+model.save_weights('fcn_final' + str(model_type) + 's_weights.h5')

@@ -95,11 +95,14 @@ datagen = ImageDataGenerator(zoom_range=0.05, vertical_flip=False, horizontal_fl
 
 callbacks = [EarlyStopping(monitor='val_loss', patience=1, verbose=1)]
 
+batch=1024
+steps = len(x_train)//batch
+
 # train the model
 start = time.time()
 print('Training starts')
-model_info = darknet.fit_generator(datagen.flow(x_train, y_train, batch_size = 1024),
-                                 steps_per_epoch = 512, epochs = 200, callbacks=callbacks,
+model_info = darknet.fit_generator(datagen.flow(x_train, y_train, batch_size = batch),
+                                 steps_per_epoch = steps, epochs = 200, callbacks=callbacks,
                                  validation_data = (x_test, y_test), verbose=1)
 end = time.time()
 

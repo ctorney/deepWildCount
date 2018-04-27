@@ -93,7 +93,7 @@ def fcn_32s_model():
     fcn32s.get_layer('final_deconv').set_weights([w_,w1_])
 
     # freeze everything but the top layers
-    for layer in fcn32s.layers[:-7]:
+    for layer in fcn32s.layers:#[:-7]:
         layer.trainable = False
 
     if os.path.isfile('fcn_32s_weights.h5'):
@@ -178,8 +178,8 @@ def fcn_16s_model():
         fcn16s.load_weights('fcn_16s_weights.h5')
     return fcn16s
 
-def fcn_8s_model():
-    input_shape = (512,512,3)
+def fcn_8s_model(width=512,height=512):
+    input_shape = (width,height,3)
 
 # load base model
     base_model = VGG16(weights='imagenet',include_top=False,input_shape=input_shape) 
@@ -241,9 +241,9 @@ def fcn_8s_model():
 #h = Softmax2D()(h)
     fcn8s = Model(ip,h)
     fcn8s.load_weights('../weights/vgg16-cls.h5',by_name=True)
-# freeze the lower layers
-    for layer in fcn8s.layers: #[:15]:
-        layer.trainable = False
+    ##freeze the lower layers
+    #for layer in fcn8s.layers[:19]:
+    #    layer.trainable = False
     w_ = get_deconv_weights([4,4,num_classes, num_classes])
     w1_ = np.zeros([2],dtype=np.float32)
     fcn8s.get_layer('p4_deconv').set_weights([w_,w1_])
@@ -259,11 +259,14 @@ def fcn_8s_model():
     fcn8s.get_layer('p5_deconv').trainable=True
     fcn8s.get_layer('final_deconv').trainable=True
     if os.path.isfile('fcn_32s_weights.h5'):
-        fcn16s.load_weights('fcn_32s_weights.h5',by_name=True)
+        fcn8s.load_weights('fcn_32s_weights.h5',by_name=True)
     if os.path.isfile('fcn_16s_weights.h5'):
-        fcn16s.load_weights('fcn_16s_weights.h5',by_name=True)
+        fcn8s.load_weights('fcn_16s_weights.h5',by_name=True)
     if os.path.isfile('fcn_8s_weights.h5'):
-        fcn16s.load_weights('fcn_8s_weights.h5')
+        fcn8s.load_weights('fcn_8s_weights.h5')
+    fcn8s.load_weights('frozen_8s_weights.h5')
+    fcn8s.load_weights('checkpoint_weights.h5')
+
     return fcn8s
 
 
