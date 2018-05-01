@@ -22,7 +22,7 @@ sys.path.append("..")
 from models.yolo_models import get_yolo
 
 
-FROM_VOC=1
+FINE_TUNE=1
 
 
 LABELS = ['wildebeest']
@@ -38,7 +38,7 @@ NMS_THRESHOLD    = 0.3#0.45 # non max suppression - what does this do?
 # this is the width/height of the anchor boxes - this will be 2,2 for all 5 - maybe - might be better to use pretrained
 #ANCHORS          = [0.57273, 0.677385, 1.87446, 2.06253, 3.33843, 5.47434, 7.88282, 3.52778, 9.77052, 9.16828]
 ANCHORS          = [53.57159857, 42.28639429, 29.47927551, 51.27168234, 37.15496912, 26.17125211]
-ignore_thresh=0.5
+ignore_thresh=0.8
 # scales - for training maybe?? no idea
 # all seem to be in the custom loss function - some method to weight the loss
 NO_OBJECT_SCALE  = 1.0# upping this to 5 (from 1) to get rid of false positives
@@ -46,7 +46,10 @@ OBJECT_SCALE     = 5.0
 COORD_SCALE      = 2.0
 CLASS_SCALE      = 1.0
 
-BATCH_SIZE       = 16
+if FINE_TUNE:
+    BATCH_SIZE       = 4
+else:
+    BATCH_SIZE       = 16
 WARM_UP_BATCHES  = 0
 TRUE_BOX_BUFFER  = 50
 print(len(LABELS))
@@ -63,14 +66,17 @@ valid_annot_folder = train_annot_folder#'/home/ctorney/data/coco/val2014ann/'
 
 model = get_yolo(IMAGE_W,IMAGE_H)
 
-model.load_weights('../weights/yolo-v3-coco.h5', by_name=True)
+if FINE_TUNE:
+    model.load_weights('../weights/wb-yolo.h5')
+else:
+    model.load_weights('../weights/yolo-v3-coco.h5', by_name=True)
 
-for layer in model.layers[:-7]:
-    layer.trainable = False
+    for layer in model.layers[:-7]:
+        layer.trainable = False
 print(model.summary())
 
 def yolo_loss(y_true, y_pred):
-    loss = tf.sqrt(tf.reduce_sum(y_pred))
+    #loss = tf.sqrt(tf.reduce_sum(y_pred))
     # adjust the shape of the y_predict [batch, grid_h, grid_w, 3, 4+1+nb_class]
     #loss = tf.Print(loss, [tf.shape(y_pred)], message='prereshape  \t\t', summarize=1000)
     y_pred = tf.reshape(y_pred, tf.concat([tf.shape(y_pred)[:3], tf.constant([3, -1])], axis=0))
@@ -151,8 +157,8 @@ def yolo_loss(y_true, y_pred):
     pred_mins    = pred_xy - pred_wh_half
     pred_maxes   = pred_xy + pred_wh_half    
 
-    loss = tf.Print(loss, [tf.shape(pred_maxes)], message='shape \t\t', summarize=1000)
-    loss = tf.Print(loss, [tf.shape(true_maxes)], message='shape \t\t', summarize=1000)
+ #   loss = tf.Print(loss, [tf.shape(pred_maxes)], message='shape \t\t', summarize=1000)
+ #   loss = tf.Print(loss, [tf.shape(true_maxes)], message='shape \t\t', summarize=1000)
     intersect_mins  = tf.maximum(pred_mins,  true_mins)
     intersect_maxes = tf.minimum(pred_maxes, true_maxes)
 
@@ -208,7 +214,7 @@ def yolo_loss(y_true, y_pred):
 #    
 #    count       = tf.reduce_sum(object_mask)
 #    count_noobj = tf.reduce_sum(1-object_mask)
-#    detect_mask = tf.to_float(pred_box_conf*object_mask >= 0.5)
+#    detect_mask = tf.to_float(pred_box_conf >= 0.5)
 #    class_mask  = tf.expand_dims(tf.to_float(tf.equal(tf.argmax(pred_box_class, -1), tf.argmax(true_box_class, -1))), 4)
 #    recall50    = tf.to_float(iou_scores >= 0.5 ) * detect_mask
 #    recall75    = tf.to_float(iou_scores >= 0.75) * detect_mask
@@ -217,8 +223,8 @@ def yolo_loss(y_true, y_pred):
 #    recall50    = tf.reduce_sum(recall50) / (count + 1e-3)
 #    recall75    = tf.reduce_sum(recall75) / (count + 1e-3)        
 #    avg_iou     = tf.reduce_sum(iou_scores) / (count + 1e-3)
-#    avg_obj     = tf.reduce_sum(pred_box_conf  * object_mask)  / (count + 1e-3)
-#    avg_noobj   = tf.reduce_sum(pred_box_conf  * (1-object_mask))  / (count_noobj + 1e-3)
+#    avg_obj     = tf.reduce_sum(detect_mask  * object_mask)  / (count + 1e-3)
+#    avg_noobj   = tf.reduce_sum(detect_mask  * (1-object_mask))  / (count_noobj + 1e-3)
 #    avg_cat     = tf.reduce_sum(pred_box_class * true_box_class) / (count + 1e-3) 
 #
     """
@@ -248,7 +254,7 @@ def yolo_loss(y_true, y_pred):
     #loss = tf.Print(loss, [tf.shape(true_box_conf)], message='shape \t\t', summarize=1000)
     #conf_delta  = (object_mask * (pred_box_conf-true_box_conf) * 5) + ((1-object_mask) * conf_delta)
     obj_delta  = (object_mask * (pred_box_conf-true_box_conf) * 5) 
-    no_obj_delta = ((1-object_mask) * conf_delta)
+    no_obj_delta = ((1-object_mask) * conf_delta)*2
     class_delta = object_mask * (pred_box_class-true_box_class)
     #class_delta = object_mask * (pred_box_conf-true_box_conf)
 
@@ -259,17 +265,17 @@ def yolo_loss(y_true, y_pred):
            tf.reduce_sum(tf.square(obj_delta),     list(range(1,5))) + \
            tf.reduce_sum(tf.square(no_obj_delta),     list(range(1,5))) + \
            tf.reduce_sum(tf.square(class_delta),    list(range(1,5)))
- #   loss = tf.Print(loss, [tf.shape(loss)], message='shape \t\t', summarize=1000)
+ #   noloss = tf.reduce_sum(tf.square(no_obj_delta),     list(range(1,5))) 
+ #   loss = tf.Print(loss, [noloss], message='shape \t\t', summarize=1000)
  #   loss = tf.Print(loss, [tf.shape(closs)], message='conshape \t\t', summarize=1000)
 #    return closs
-    return loss
 
     #loss = tf.cond(tf.less(batch_seen, self.warmup_batches+1), # add 10 to the loss if this is the warmup stage
     #              lambda: loss + 10,
     #              lambda: loss)
     
-#    loss = tf.Print(loss, [grid_h, avg_obj], message='avg_obj \t\t', summarize=1000)
-#    loss = tf.Print(loss, [grid_h, avg_noobj], message='avg_noobj \t\t', summarize=1000)
+ #   loss = tf.Print(loss, [avg_obj], message='\n\n avg_obj \t', summarize=1000)
+ #   loss = tf.Print(loss, [avg_noobj], message='\n avg_noobj \t\n', summarize=1000)
 #    loss = tf.Print(loss, [grid_h, avg_iou], message='avg_iou \t\t', summarize=1000)
 #    loss = tf.Print(loss, [grid_h, avg_cat], message='avg_cat \t\t', summarize=1000)
 #    loss = tf.Print(loss, [grid_h, recall50], message='recall50 \t', summarize=1000)
@@ -345,10 +351,15 @@ train_batch = BatchGenerator(
 
 
 
-optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+if FINE_TUNE:
+    optimizer = Adam(lr=0.5e-6, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    EPOCHS=10
+else:
+    optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    EPOCHS=40
 #  optimizer = SGD(lr=1e-5, decay=0.0005, momentum=0.9)
 model.compile(loss=yolo_loss, optimizer=optimizer)
-wt_file='../weights/wb_yolo.h5'
+wt_file='../weights/wb-yolo.h5'
 #optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
 early_stop = EarlyStopping(monitor='val_loss', 
                            min_delta=0.001, 
@@ -367,7 +378,7 @@ checkpoint = ModelCheckpoint(wt_file,
 start = time.time()
 model.fit_generator(generator        = train_batch, 
                     steps_per_epoch  = len(train_batch), 
-                    epochs           = 10, 
+                    epochs           = EPOCHS, 
                     verbose          = 1,
             #        validation_data  = valid_batch,
             #        validation_steps = len(valid_batch),
