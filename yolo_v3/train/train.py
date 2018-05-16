@@ -306,7 +306,7 @@ from operator import itemgetter
 import random
 
 ### read saved pickle of parsed annotations
-with open ('train_images/annotations.pickle', 'rb') as fp:
+with open ('train_images/annotations-checked-2.pickle', 'rb') as fp:
     all_imgs = pickle.load(fp)
 
 num_ims = len(all_imgs)
@@ -353,22 +353,22 @@ train_batch = BatchGenerator(
 
 if FINE_TUNE:
     optimizer = Adam(lr=0.5e-6, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    EPOCHS=10
+    EPOCHS=200
 else:
     optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    EPOCHS=40
+    EPOCHS=25
 #  optimizer = SGD(lr=1e-5, decay=0.0005, momentum=0.9)
 model.compile(loss=yolo_loss, optimizer=optimizer)
 wt_file='../weights/wb-yolo.h5'
 #optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
-early_stop = EarlyStopping(monitor='val_loss', 
+early_stop = EarlyStopping(monitor='loss', 
                            min_delta=0.001, 
                            patience=5, 
                            mode='min', 
                            verbose=1)
 
 checkpoint = ModelCheckpoint(wt_file, 
-                             monitor='val_loss', 
+                             monitor='loss', 
                              verbose=1, 
                              save_best_only=True, 
                              mode='min', 
@@ -382,7 +382,7 @@ model.fit_generator(generator        = train_batch,
                     verbose          = 1,
             #        validation_data  = valid_batch,
             #        validation_steps = len(valid_batch),
- #                   callbacks        = [checkpoint],# , early_stop],#, tensorboard], 
+                    callbacks        = [checkpoint, early_stop],#, tensorboard], 
                     max_queue_size   = 3)
 end = time.time()
 print('Training took ' + str(end - start) + ' seconds')

@@ -3,7 +3,7 @@ import copy
 import numpy as np
 from keras.utils import Sequence
 from utils.bbox import BoundBox, bbox_iou
-from utils.image import apply_random_scale_and_crop, random_distort_image, random_flip, correct_bounding_boxes
+from utils.image import apply_random_scale_and_crop, random_distort_image, random_flip, correct_bounding_boxes, random_flip2, correct_bounding_boxes2
 
 class BatchGenerator(Sequence):
     def __init__(self, 
@@ -187,14 +187,18 @@ class BatchGenerator(Sequence):
         im_sized = apply_random_scale_and_crop(image, new_w, new_h, net_w, net_h, dx, dy)
         
         # randomly distort hsv space
-        im_sized = random_distort_image(im_sized)
+        # im_sized = random_distort_image(im_sized)
         
         # randomly flip
         flip = np.random.randint(2)
         im_sized = random_flip(im_sized, flip)
+        #im_sized = random_flip(image, flip)
+        flip2 = np.random.randint(2)
+        im_sized = random_flip2(im_sized, flip2)
             
         # correct the size and pos of bounding boxes
-        all_objs = correct_bounding_boxes(instance['object'], new_w, new_h, net_w, net_h, dx, dy, flip, image_w, image_h)
+        #all_objs = correct_bounding_boxes(instance['object'], new_w, new_h, net_w, net_h, dx, dy, flip, image_w, image_h)
+        all_objs = correct_bounding_boxes2(instance['object'], new_w, new_h, net_w, net_h, dx, dy, flip, flip2, image_w, image_h)
         
         return im_sized, all_objs   
 

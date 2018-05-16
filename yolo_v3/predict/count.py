@@ -7,13 +7,15 @@ from models.yolo_models import get_yolo
 ROOTDIR = '../../'
 image_dir = ROOTDIR + '/data/2015/'
 train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-test.txt',dtype='str')
+#train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
 correct = np.genfromtxt(ROOTDIR + '/data/2015-checked-test-correct.txt',dtype='int')
+#correct = np.genfromtxt(ROOTDIR + '/data/2015-checked-train-correct.txt',dtype='int')
 IMAGES = len(train_images)
 
 
 anchors = np.array([[53.57159857, 42.28639429], [29.47927551, 51.27168234], [37.15496912, 26.17125211]])
 obj_thresh=0.5
-nms_thresh=0.25
+nms_thresh=0.4 #0.25
 nb_box=3
 
 IMAGE_H, IMAGE_W = 4928, 7360
@@ -135,7 +137,8 @@ for filename in train_images:
     error += abs(im_count-correct[n])
     rmserror += (im_count-correct[n])**2
     pmerror += (im_count-correct[n])
-    print(filename + ": " +  str(im_count) + " " + str(correct[n]) + " " + str(error/float(n+1)) + ", overcount " + str(pmerror/float(n+1))+ ", rms error " + str((rmserror/float(n+1))**0.5))
+    #print(filename + ": " +  str(im_count) + " " + str(correct[n]) + " " + str(error/float(n+1)) + ", overcount " + str(pmerror)+ ", rms error " + str((rmserror/float(n+1))**0.5))
+    print(str(im_count) + "," + str(correct[n]))
 
     n=n+1
 
