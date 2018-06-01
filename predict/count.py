@@ -4,7 +4,7 @@ import time
 sys.path.append("..")
 from models.yolo_models import get_yolo
 
-ROOTDIR = '../../'
+ROOTDIR = '../'
 image_dir = ROOTDIR + '/data/2015/'
 train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-test.txt',dtype='str')
 #train_images = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
@@ -14,8 +14,8 @@ IMAGES = len(train_images)
 
 
 anchors = np.array([[53.57159857, 42.28639429], [29.47927551, 51.27168234], [37.15496912, 26.17125211]])
-obj_thresh=0.5
-nms_thresh=0.4 #0.25
+obj_thresh=0.19#5
+nms_thresh=0.3 #0.25
 nb_box=3
 
 IMAGE_H, IMAGE_W = 4928, 7360
@@ -52,17 +52,22 @@ def bbox_iou(box1, box2):
 
     w1, h1 = box1[2]-box1[0], box1[3]-box1[1]
     w2, h2 = box2[2]-box2[0], box2[3]-box2[1]
+    a1 = w1*h1
+    a2 = w2*h2
+    union = a1 + a2 - intersect
     
-    union = w1*h1 + w2*h2 - intersect
-    
-    return float(intersect) / union
+    if intersect==0:
+        return 0.0
+
+ #   return float(intersect) / union
+    return max(max(float(intersect) / union,a1/intersect),a2/intersect)
 
 n=0
 error = 0.0
 pmerror = 0.0
 rmserror = 0.0
 model = get_yolo(NET_W,NET_H)
-model.load_weights('../weights/wb-yolo.h5')
+model.load_weights('../weights/wb-yolo-aug.h5')
 
 for filename in train_images: 
 
@@ -137,11 +142,12 @@ for filename in train_images:
     error += abs(im_count-correct[n])
     rmserror += (im_count-correct[n])**2
     pmerror += (im_count-correct[n])
-    #print(filename + ": " +  str(im_count) + " " + str(correct[n]) + " " + str(error/float(n+1)) + ", overcount " + str(pmerror)+ ", rms error " + str((rmserror/float(n+1))**0.5))
-    print(str(im_count) + "," + str(correct[n]))
+    print(filename + ": " +  str(im_count) + " " + str(correct[n]) + " " + str(error/float(n+1)) + ", overcount " + str(pmerror)+ ", rms error " + str((rmserror/float(n+1))**0.5))
+    #print(str(im_count) + "," + str(correct[n]))
 
     n=n+1
 
+#print(filename + ": " +  str(im_count) + " " + str(correct[n]) + " " + str(error/float(n+1)) + ", overcount " + str(pmerror)+ ", rms error " + str((rmserror/float(n+1))**0.5))
 #IMAGE_H, IMAGE_W = 4928, 7360
 
 

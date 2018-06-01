@@ -353,13 +353,13 @@ train_batch = BatchGenerator(
 
 if FINE_TUNE:
     optimizer = Adam(lr=0.5e-6, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    EPOCHS=200
+    EPOCHS=20
 else:
     optimizer = Adam(lr=0.5e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     EPOCHS=25
 #  optimizer = SGD(lr=1e-5, decay=0.0005, momentum=0.9)
 model.compile(loss=yolo_loss, optimizer=optimizer)
-wt_file='../weights/wb-yolo.h5'
+wt_file='../weights/wb-yolo-aug.h5'
 #optimizer = RMSprop(lr=1e-4, rho=0.9, epsilon=1e-08, decay=0.0)
 early_stop = EarlyStopping(monitor='loss', 
                            min_delta=0.001, 

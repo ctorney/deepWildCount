@@ -188,7 +188,7 @@ class BatchGenerator(Sequence):
         im_sized = apply_random_scale_and_crop(image, new_w, new_h, net_w, net_h, dx, dy)
         
         # randomly distort hsv space
-        # im_sized = random_distort_image(im_sized)
+        im_sized = random_distort_image(im_sized)
         
         # randomly flip
         flip = np.random.randint(2)
