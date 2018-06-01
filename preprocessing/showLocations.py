@@ -16,6 +16,7 @@ movieList = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
 endLoop=False
 for imagename in movieList: 
 
+    imagename = "SWC1077"
     print(imagename + '.JPG')
     im = cv2.imread(image_dir + imagename + '.JPG')
     rawIm = im.copy()
@@ -35,6 +36,8 @@ for imagename in movieList:
         
     cv2.namedWindow(imagename, flags =  cv2.WINDOW_GUI_EXPANDED )
     cv2.imshow(imagename,im)
+    cv2.imwrite(imagename + '.png', allIm)
+    break
     while(1):
         k = cv2.waitKey(0) & 0xFF
         if k==27:    # Esc key to stop

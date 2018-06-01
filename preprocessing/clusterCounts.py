@@ -15,8 +15,8 @@ def allocate2Cluster(xmarks, ymarks, xcluster, ycluster):
     for i in range(nm):
         for j in range(nc):
             distances[i][j] = hypot(xmarks[i]-xcluster[j],ymarks[i]-ycluster[j])
-    # any marks over 64 pixels cannot belong to that cluster
-    distances[distances>64]=np.inf
+    # any marks over 32 pixels cannot belong to that cluster
+    distances[distances>32]=np.inf
     
     # loop while there are still potential matchings
     while np.any(np.isfinite(distances)): 
@@ -48,8 +48,9 @@ data = []
 
 
 # uses clustering to group identifications by multiple counters into one average location
-for image in count_data['SWC_image'].drop_duplicates():
-    df = count_data.loc[count_data['SWC_image'] == image][['user_name', 'xcoord', 'ycoord']].dropna(axis=0)
+for image in count_data['tile_id'].drop_duplicates():
+    print(image)
+    df = count_data.loc[count_data['tile_id'] == image][['user_name', 'xcoord', 'ycoord']].dropna(axis=0)
     df['cluster']=-1
     for user, marks in df.groupby('user_name'):
         cluster_locations = df[df['cluster']>=0].groupby(['cluster']).mean()
@@ -64,7 +65,7 @@ for image in count_data['SWC_image'].drop_duplicates():
         if len(df[df.cluster==cluster]) > 5:
             Xx = df[df.cluster==cluster].xcoord.mean()
             Yy = df[df.cluster==cluster].ycoord.mean()
-            data.append([image,Xx,Yy])
+            data.append([image[:7],Xx,Yy])
 
 
 
