@@ -1,11 +1,12 @@
 
+# YOLO models in keras. 
+# code is modified from https://github.com/experiencor/keras-yolo3
+
 from keras.models import Model
 from keras.layers import Conv2D, Input, BatchNormalization, LeakyReLU, ZeroPadding2D, UpSampling2D, Dense, Flatten
 from keras.layers.merge import add, concatenate
 
 
-BOX              = 1
-CLASS            = 1
 def _conv_block(inp, convs, skip=True):
     x = inp
     count = 0
