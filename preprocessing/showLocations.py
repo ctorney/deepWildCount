@@ -9,7 +9,6 @@ inputfile = ROOTDIR  + '/data/2015-Z-ALL-COUNTERS.csv'
 counts = pd.read_csv(inputfile)
 
 allfile = ROOTDIR  + '/data/2015-Z-LOCATIONS.csv'
-allfile = ROOTDIR  + '/data/2015-FINAL-FINAL.csv'
 all_counts = pd.read_csv(allfile)
 
 movieList = np.genfromtxt(ROOTDIR + '/data/2015-checked-train.txt',dtype='str')
