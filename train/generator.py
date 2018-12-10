@@ -1,4 +1,8 @@
+# code for generating training data - includes data augmentation
+# code is a modified version of https://github.com/experiencor/keras-yolo3
+
 import cv2
+
 import copy
 import numpy as np
 from keras.utils import Sequence
@@ -56,8 +60,6 @@ class BatchGenerator(Sequence):
 
         # initialize the inputs and the outputs
         yolo_1 = np.zeros((r_bound - l_bound, 4*base_grid_h,  4*base_grid_w, len(self.anchors), 4+1+len(self.labels))) # desired network output 1
-        #yolo_2 = np.zeros((r_bound - l_bound, 2*base_grid_h,  2*base_grid_w, len(self.anchors)//3, 4+1+len(self.labels))) # desired network output 2
-        #yolo_3 = np.zeros((r_bound - l_bound, 4*base_grid_h,  4*base_grid_w, len(self.anchors)//3, 4+1+len(self.labels))) # desired network output 3
         yolos = [yolo_1]
 
         dummy_yolo_1 = np.zeros((r_bound - l_bound, 1))
@@ -146,9 +148,7 @@ class BatchGenerator(Sequence):
             instance_count += 1                 
                 
         yolo_1 = yolo_1.reshape((yolo_1.shape[0],yolo_1.shape[1],yolo_1.shape[2],18))
-       # print(yolo_1.shape)
-        return x_batch, yolo_1#], [dummy_yolo_1]
-        return [x_batch, t_batch, yolo_1], [dummy_yolo_1]
+        return x_batch, yolo_1
 
     def _get_net_size(self, idx):
         if idx%10 == 0:
