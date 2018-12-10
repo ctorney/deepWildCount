@@ -29,7 +29,7 @@ wb_size=64 #size of bounding boxes we're going to create
 sz_2=wb_size//2
 yolov3 = get_yolo_coco(im_size,im_size)
 print(yolov3.summary())
-sys.exit('bye')
+
 yolov3.load_weights('../../weights/yolo-v3-coco.h5')
 im_num=1
 all_imgs = []
